@@ -22,13 +22,12 @@ public class Appointment {
     private String userName;
     private LocalDateTime date;
 
-    @ManyToOne
-    private Long doctorId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "doctor_id")
+    private Doctor doctor;
 
     @Enumerated(EnumType.STRING)
     private AppointmentStatus status;
-
-
 
 
 
