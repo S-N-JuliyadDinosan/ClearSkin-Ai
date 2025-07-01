@@ -1,4 +1,4 @@
-package com.clearskin_ai.adminservice;
+package com.ClearSkin_Ai.AdminService;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

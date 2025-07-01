@@ -1,4 +1,4 @@
-package com.ClearSkin_Ai.AdminService.util;
+package com.clearskin_ai.adminservice.util;
 
 public class EndpointBundle {
     public static final String BASE_URL = "/students";
