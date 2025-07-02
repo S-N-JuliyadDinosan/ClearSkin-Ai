@@ -1,9 +1,11 @@
-package com.ClearSkin_Ai.AdminService;
+package com.clearskin_ai.adminservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
+@EnableFeignClients
 public class AdminServiceApplication {
 
 	public static void main(String[] args) {

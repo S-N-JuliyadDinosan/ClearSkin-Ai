@@ -21,15 +21,10 @@ public class Appointment {
     private String userEmail;
     private String userName;
     private LocalDateTime date;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "doctor_id")
-    private Doctor doctor;
+    private Long doctorId;
 
     @Enumerated(EnumType.STRING)
     private AppointmentStatus status;
-
-
 
 
 }
