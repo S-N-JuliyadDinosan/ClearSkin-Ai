@@ -1,10 +1,7 @@
 package com.clearskinai.adminservice.entity;
 
 import com.clearskinai.adminservice.enums.Roles;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,6 +13,7 @@ import lombok.NoArgsConstructor;
 @Entity
 public class Staff {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long staffId;
     private String email;
     private String password;

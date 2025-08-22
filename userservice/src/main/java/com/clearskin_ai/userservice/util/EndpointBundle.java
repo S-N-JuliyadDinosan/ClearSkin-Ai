@@ -1,7 +1,12 @@
 package com.clearskin_ai.userservice.util;
 
 public class EndpointBundle {
-    public static final String BASE_URL = "/students";
-    public static final String ID = "/{studentId}";
+
+    //User
+    public static final String USER_BASE_URL = "/api/v1/user";
+    public static final String ID = "/{id}";
+    public static final String REGISTER_USER = "/register";
+    public static final String LOGIN_USER = "/login";
+
 
 }
