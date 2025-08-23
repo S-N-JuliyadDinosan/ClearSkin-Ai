@@ -21,7 +21,8 @@ public class SecurityConfig {
                                 "/api/v1/user/login",
                                 "/api/v1/user/analysis",
                                 "/api/v1/user/analysis/count",
-                                "/api/v1/user/analysis/anonymous").permitAll()
+                                "/api/v1/user/analysis/anonymous",
+                                "/api/v1/products/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .httpBasic(Customizer.withDefaults()); // Optional

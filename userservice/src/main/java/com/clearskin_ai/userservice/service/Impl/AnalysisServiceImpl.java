@@ -42,6 +42,13 @@ public class AnalysisServiceImpl implements AnalysisService {
                 throw new IllegalArgumentException("Image file is required");
             }
 
+            // Maximum file size in bytes (e.g., 5MB)
+            long MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+            if (file.getSize() > MAX_FILE_SIZE) {
+                throw new IllegalArgumentException("File size exceeds the maximum allowed limit of 5MB. Please upload a smaller image.");
+            }
+
             // Call Flask API
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -52,9 +59,10 @@ public class AnalysisServiceImpl implements AnalysisService {
                     return file.getOriginalFilename();
                 }
             });
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(flaskApiUrl, requestEntity, String.class);
+
             JSONObject jsonResponse = new JSONObject(response.getBody());
             String severity = jsonResponse.getString("class"); // Changed from "severity" to "class"
             double confidence = jsonResponse.getDouble("confidence");
@@ -75,12 +83,15 @@ public class AnalysisServiceImpl implements AnalysisService {
             String suggestion = getSuggestion(severity, confidence);
 
             return new AnalysisResponseDto(severity, suggestion, history.getAnalysisTime());
+
         } catch (IllegalArgumentException e) {
+            // Friendly message for missing file or exceeding size
             throw new RuntimeException(ApplicationConstants.MISSING_REQUIRED_FIELDS + ": " + e.getMessage());
         } catch (Exception e) {
             throw new RuntimeException("Failed to analyze image: " + e.getMessage());
         }
     }
+
 
     @Override
     public List<AnalysisResponseDto> getAnalysisHistory(Long userId) {

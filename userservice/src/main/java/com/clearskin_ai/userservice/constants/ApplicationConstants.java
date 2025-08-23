@@ -25,6 +25,11 @@ public interface ApplicationConstants {
     String STATUS_INACTIVE = "INACTIVE";
     String STATUS_BLOCKED = "BLOCKED";
 
+    // Products
+    String PRODUCT_ALREADY_EXISTS = "PRODUCT_ALREADY_EXISTS";
+    String PRODUCT_NOT_FOUND = "PRODUCT_NOT_FOUND";
+
+
     // Email
     String EMAIL_SUBJECT_WELCOME = "Welcome to ClearSkin AI!";
     String EMAIL_BODY_TEMPLATE = "Hi %s,\n\nWelcome to ClearSkin AI!\nYour account has been created successfully.\n\nUsername: %s\nPassword: %s\n\nPlease change your password after logging in.\n\nBest regards,\nClearSkin Team";
