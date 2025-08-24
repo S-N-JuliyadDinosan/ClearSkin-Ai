@@ -25,4 +25,6 @@ public class RegisterUserDto {
 
     @NotBlank(message = "Retype password is required")
     private String retypePassword;
+
+    private String role = "USER";
 }

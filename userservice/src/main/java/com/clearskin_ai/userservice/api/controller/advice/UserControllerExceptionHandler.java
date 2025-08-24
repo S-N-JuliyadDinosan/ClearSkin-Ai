@@ -1,10 +1,7 @@
 package com.clearskin_ai.userservice.api.controller.advice;
 
 import com.clearskin_ai.userservice.constants.ApplicationConstants;
-import com.clearskin_ai.userservice.exception.InvalidCredentialsException;
-import com.clearskin_ai.userservice.exception.PasswordMismatchException;
-import com.clearskin_ai.userservice.exception.UserAlreadyExistsException;
-import com.clearskin_ai.userservice.exception.UserNotFoundException;
+import com.clearskin_ai.userservice.exception.*;
 import com.clearskin_ai.userservice.util.ErrorMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -65,6 +62,17 @@ public class UserControllerExceptionHandler {
         ErrorMessages errorMessages = new ErrorMessages(
                 ex.getMessage(),
                 "Invalid request data",
+                HttpStatus.BAD_REQUEST.value(),
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorMessages, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(InvalidRoleException.class)
+    public ResponseEntity<ErrorMessages> handleInvalidRoleException(InvalidRoleException ex) {
+        ErrorMessages errorMessages = new ErrorMessages(
+                ex.getMessage(),
+                "Invalid role",
                 HttpStatus.BAD_REQUEST.value(),
                 LocalDateTime.now()
         );
