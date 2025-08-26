@@ -14,6 +14,13 @@ public interface ApplicationConstants {
     String APPOINTMENT_COMPLETED_SUCCESSFULLY = "Appointment marked as completed successfully";
     String APPOINTMENT_RESCHEDULED_SUCCESSFULLY = "Appointment rescheduled successfully";
 
+    // Doctor Messages
+    String DOCTOR_NOT_FOUND = "Doctor not found";
+    String DOCTOR_ALREADY_EXISTS = "Doctor already exists with given name and qualifications";
+    String DOCTOR_CREATED_SUCCESSFULLY = "Doctor created successfully";
+    String DOCTOR_UPDATED_SUCCESSFULLY = "Doctor updated successfully";
+    String DOCTOR_DELETED_SUCCESSFULLY = "Doctor deleted successfully";
+
     // Validation Errors
     String INVALID_DOCTOR_ID = "Invalid doctor ID";
     String INVALID_USER_ID = "Invalid user ID";
@@ -28,5 +35,4 @@ public interface ApplicationConstants {
     String STATUS_COMPLETED = "COMPLETED";
     String STATUS_NO_SHOW = "NO_SHOW";
     String STATUS_RESCHEDULED = "RESCHEDULED";
-
 }
