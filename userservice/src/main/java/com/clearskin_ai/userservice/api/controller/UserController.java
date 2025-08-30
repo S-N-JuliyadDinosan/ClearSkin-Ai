@@ -78,5 +78,13 @@ public class UserController {
         return ResponseEntity.ok("Password changed successfully");
     }
 
+    @GetMapping("/email")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'USER')")
+    public ResponseEntity<UserDto> getUserByEmail(@RequestParam String email) {
+        return ResponseEntity.ok(userService.getUserByEmail(email));
+    }
+
+
+
 
 }

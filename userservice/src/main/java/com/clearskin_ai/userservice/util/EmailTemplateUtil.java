@@ -55,7 +55,7 @@ public class EmailTemplateUtil {
                 + "<p><strong>Password:</strong> " + password + "</p>"
                 + "</div>"
                 + "<p>Click the button below to login:</p>"
-                + "<a class='button' href='http://localhost:8000/login'>Login to ClearSkin AI</a>"
+                + "<a class='button' href='http://localhost:3000/login'>Login to ClearSkin AI</a>"
                 + "<p>If you didn't request this, please ignore this email.</p>";
     }
 }
