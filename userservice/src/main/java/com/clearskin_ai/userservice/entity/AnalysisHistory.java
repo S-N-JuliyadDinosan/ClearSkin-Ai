@@ -20,5 +20,7 @@ public class AnalysisHistory {
     private Long history_id;
     private Long userId;
     private String severity;
+    private Double confidence;
+    private String diagnosis;
     private Timestamp analysisTime;
 }

@@ -7,6 +7,7 @@ import com.clearskin_ai.userservice.entity.AnalysisHistory;
 import com.clearskin_ai.userservice.repository.AnalysisHistoryRepository;
 import com.clearskin_ai.userservice.service.AnalysisService;
 import lombok.RequiredArgsConstructor;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -34,124 +35,200 @@ public class AnalysisServiceImpl implements AnalysisService {
     @Value("${flask.api.url:http://localhost:5000/predict}")
     private String flaskApiUrl;
 
+    @Value("${gemini.api.key}")
+    private String geminiApiKey;
+
     @Override
     public AnalysisResponseDto analyzeImage(MultipartFile file, Long userId) {
         try {
-            // Validate file
-            if (file == null || file.isEmpty()) {
-                throw new IllegalArgumentException("Image file is required");
-            }
+            validateFile(file);
 
-            // Maximum file size in bytes (e.g., 5MB)
-            long MAX_FILE_SIZE = 5 * 1024 * 1024;
+            // Call Flask ML model
+            JSONObject mlResponse = callFlaskApi(file);
+            String severity = mlResponse.getString("class");
+            double confidence = mlResponse.getDouble("confidence");
 
-            if (file.getSize() > MAX_FILE_SIZE) {
-                throw new IllegalArgumentException("File size exceeds the maximum allowed limit of 5MB. Please upload a smaller image.");
-            }
-
-            // Call Flask API
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
-            });
-
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(flaskApiUrl, requestEntity, String.class);
-
-            JSONObject jsonResponse = new JSONObject(response.getBody());
-            String severity = jsonResponse.getString("class"); // Changed from "severity" to "class"
-            double confidence = jsonResponse.getDouble("confidence");
-
-            // Validate severity
             if (!isValidSeverity(severity)) {
                 throw new IllegalStateException("Invalid severity returned from ML model: " + severity);
             }
 
-            // Store in AnalysisHistory
+            // Generate diagnosis using Gemini
+            String diagnosis = generateGeminiDiagnosis(severity, confidence, userId);
+
+            // Store analysis history
             AnalysisHistory history = new AnalysisHistory();
-            history.setUserId(userId); // Null for anonymous
+            history.setUserId(userId);
             history.setSeverity(severity);
+            history.setConfidence(confidence);
+            history.setDiagnosis(diagnosis);
             history.setAnalysisTime(new Timestamp(System.currentTimeMillis()));
             analysisHistoryRepository.save(history);
 
-            // Get suggestion
             String suggestion = getSuggestion(severity, confidence);
 
-            return new AnalysisResponseDto(severity, suggestion, history.getAnalysisTime());
+            return new AnalysisResponseDto(severity, confidence, suggestion, diagnosis, history.getAnalysisTime());
 
         } catch (IllegalArgumentException e) {
-            // Friendly message for missing file or exceeding size
             throw new RuntimeException(ApplicationConstants.MISSING_REQUIRED_FIELDS + ": " + e.getMessage());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to analyze image: " + e.getMessage());
+            throw new RuntimeException("Failed to analyze image: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Image file is required");
+        }
+
+        long MAX_FILE_SIZE = 5 * 1024 * 1024;
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException("File size exceeds the maximum allowed limit of 5MB. Please upload a smaller image.");
+        }
+    }
+
+    private JSONObject callFlaskApi(MultipartFile file) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename();
+            }
+        });
+
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(flaskApiUrl, entity, String.class);
+
+        return new JSONObject(response.getBody());
+    }
+
+    private String generateGeminiDiagnosis(String severity, double confidence, Long userId) {
+        String prompt;
+
+        if (userId != null) {
+            List<AnalysisHistory> previousHistory = analysisHistoryRepository.findByUserId(userId);
+
+            // Filter out null or invalid confidence entries
+            List<AnalysisHistory> validHistory = previousHistory.stream()
+                    .filter(h -> h.getConfidence() != null && isValidSeverity(h.getSeverity()))
+                    .collect(Collectors.toList());
+
+            if (validHistory.isEmpty()) {
+                prompt = createFirstTimePrompt(severity, confidence);
+            } else {
+                prompt = createFollowUpPrompt(severity, confidence, validHistory);
+            }
+        } else {
+            prompt = createFirstTimePrompt(severity, confidence);
+        }
+
+        return callGeminiApi(prompt);
+    }
+
+    private String createFirstTimePrompt(String severity, double confidence) {
+        return String.format(
+                "Our model has 4 classes: none, mild, moderate, severe. " +
+                        "This face image's class is %s with confidence %.2f. " +
+                        "Provide a short prompt to inform the user about their acne condition and warn that neglecting it may lead to possible causes like scarring, infection, or worsening of acne. " +
+                        "The message should be concise, slightly alarming, and focus only on the condition and potential consequences.",
+                severity, confidence
+        );
+    }
+
+    private String createFollowUpPrompt(String severity, double confidence, List<AnalysisHistory> previousHistory) {
+        String previousStr = previousHistory.stream()
+                .map(h -> String.format("%s with confidence %.2f", h.getSeverity(), h.getConfidence()))
+                .collect(Collectors.joining(", "));
+
+        return String.format(
+                "Our model has 4 classes: none, mild, moderate, severe. Current: class %s, confidence %.2f. Previous: %s. " +
+                        "Analyze if the acne condition is improving or worsening based on the current and previous analysis history. " +
+                        "Provide a concise diagnosis with recommendations.",
+                severity, confidence, previousStr
+        );
+    }
+
+    private String callGeminiApi(String prompt) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        String jsonPayload = "{ \"contents\": [ { \"parts\": [ { \"text\": \""
+                + prompt.replace("\"", "\\\"") + "\" } ] } ] }";
+
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+        HttpEntity<String> entity = new HttpEntity<>(jsonPayload, headers);
+
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.postForEntity(url, entity, String.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+        }
+
+        try {
+            JSONObject jsonResponse = new JSONObject(response.getBody());
+            JSONArray candidates = jsonResponse.getJSONArray("candidates");
+            if (candidates.length() == 0) {
+                throw new RuntimeException("No candidates in Gemini response");
+            }
+            JSONObject content = candidates.getJSONObject(0).getJSONObject("content");
+            JSONArray parts = content.getJSONArray("parts");
+            return parts.getJSONObject(0).getString("text");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Gemini response: " + e.getMessage(), e);
         }
     }
 
 
     @Override
     public List<AnalysisResponseDto> getAnalysisHistory(Long userId) {
-        try {
-            if (userId == null) {
-                throw new IllegalArgumentException(ApplicationConstants.INVALID_USER_ID);
-            }
-            List<AnalysisHistory> historyList = analysisHistoryRepository.findByUserId(userId);
-            return historyList.stream()
-                    .map(history -> new AnalysisResponseDto(
-                            history.getSeverity(),
-                            getSuggestion(history.getSeverity(), 1.0), // Default confidence for history
-                            history.getAnalysisTime()))
-                    .collect(Collectors.toList());
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException(e.getMessage());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch analysis history: " + e.getMessage());
+        if (userId == null) {
+            throw new IllegalArgumentException(ApplicationConstants.INVALID_USER_ID);
         }
+
+        List<AnalysisHistory> historyList = analysisHistoryRepository.findByUserId(userId);
+        return historyList.stream()
+                .map(history -> new AnalysisResponseDto(
+                        history.getSeverity(),
+                        history.getConfidence() != null ? history.getConfidence() : 1.0,
+                        getSuggestion(history.getSeverity(), history.getConfidence() != null ? history.getConfidence() : 1.0),
+                        history.getDiagnosis(),
+                        history.getAnalysisTime()
+                ))
+                .collect(Collectors.toList());
     }
 
     @Override
     public AnalysisCountDto getAnalysisCount() {
-        try {
-            long count = analysisHistoryRepository.countAnalyses();
-            return new AnalysisCountDto(count);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch analysis count: " + e.getMessage());
-        }
+        long count = analysisHistoryRepository.countAnalyses();
+        return new AnalysisCountDto(count);
     }
 
     @Override
     public List<AnalysisResponseDto> getAnonymousAnalyses() {
-        try {
-            List<AnalysisHistory> anonymousList = analysisHistoryRepository.findAnonymousAnalyses();
-            return anonymousList.stream()
-                    .map(history -> new AnalysisResponseDto(
-                            history.getSeverity(),
-                            getSuggestion(history.getSeverity(), 1.0), // Default confidence for history
-                            history.getAnalysisTime()))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch anonymous analyses: " + e.getMessage());
-        }
+        List<AnalysisHistory> anonymousList = analysisHistoryRepository.findAnonymousAnalyses();
+        return anonymousList.stream()
+                .map(history -> new AnalysisResponseDto(
+                        history.getSeverity(),
+                        history.getConfidence() != null ? history.getConfidence() : 1.0,
+                        getSuggestion(history.getSeverity(), history.getConfidence() != null ? history.getConfidence() : 1.0),
+                        history.getDiagnosis(),
+                        history.getAnalysisTime()
+                ))
+                .collect(Collectors.toList());
     }
 
     private String getSuggestion(String severity, double confidence) {
         String confidenceText = String.format(" (Confidence: %.2f)", confidence);
-        switch (severity.toLowerCase()) {
-            case "none":
-                return "Your skin looks clear! Maintain with gentle cleansing." + confidenceText;
-            case "mild":
-                return "Use salicylic acid cleanser twice daily." + confidenceText;
-            case "moderate":
-                return "Consider benzoyl peroxide and consult a dermatologist." + confidenceText;
-            case "severe":
-                return "Seek immediate dermatologist consultation." + confidenceText;
-            default:
-                return "Unknown severity.";
-        }
+        return switch (severity.toLowerCase()) {
+            case "none" -> "Your skin looks clear! Maintain with gentle cleansing." + confidenceText;
+            case "mild" -> "Use salicylic acid cleanser twice daily." + confidenceText;
+            case "moderate" -> "Consider benzoyl peroxide and consult a dermatologist." + confidenceText;
+            case "severe" -> "Seek immediate dermatologist consultation." + confidenceText;
+            default -> "Unknown severity.";
+        };
     }
 
     private boolean isValidSeverity(String severity) {

@@ -11,6 +11,8 @@ import java.sql.Timestamp;
 @NoArgsConstructor
 public class AnalysisResponseDto {
     private String severity;
+    private double confidence;
     private String suggestion;
+    private String diagnosis;
     private Timestamp analysisTime;
 }
