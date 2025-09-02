@@ -1,6 +1,7 @@
 package com.clearskin_ai.userservice.service.Impl;
 
 import com.clearskin_ai.userservice.api.dto.AnalysisCountDto;
+import com.clearskin_ai.userservice.api.dto.AnalysisHistoryResponseDto;
 import com.clearskin_ai.userservice.api.dto.AnalysisResponseDto;
 import com.clearskin_ai.userservice.constants.ApplicationConstants;
 import com.clearskin_ai.userservice.entity.AnalysisHistory;
@@ -11,6 +12,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,7 +24,9 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.data.domain.Pageable;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -183,22 +188,28 @@ public class AnalysisServiceImpl implements AnalysisService {
 
 
     @Override
-    public List<AnalysisResponseDto> getAnalysisHistory(Long userId) {
+    public List<AnalysisHistoryResponseDto> getUserAnalysisHistory(Long userId) {
         if (userId == null) {
             throw new IllegalArgumentException(ApplicationConstants.INVALID_USER_ID);
         }
 
         List<AnalysisHistory> historyList = analysisHistoryRepository.findByUserId(userId);
-        return historyList.stream()
-                .map(history -> new AnalysisResponseDto(
-                        history.getSeverity(),
-                        history.getConfidence() != null ? history.getConfidence() : 1.0,
-                        getSuggestion(history.getSeverity(), history.getConfidence() != null ? history.getConfidence() : 1.0),
-                        history.getDiagnosis(),
-                        history.getAnalysisTime()
-                ))
-                .collect(Collectors.toList());
+
+        List<AnalysisHistoryResponseDto> responseList = new ArrayList<>();
+        for (AnalysisHistory current : historyList) {
+
+            responseList.add(new AnalysisHistoryResponseDto(
+                    current.getHistory_id(),
+                    current.getSeverity(),
+                    current.getDiagnosis(),
+                    current.getAnalysisTime(),
+                    current.getConfidence()
+            ));
+        }
+
+        return responseList;
     }
+
 
     @Override
     public AnalysisCountDto getAnalysisCount() {
@@ -223,15 +234,56 @@ public class AnalysisServiceImpl implements AnalysisService {
     private String getSuggestion(String severity, double confidence) {
         String confidenceText = String.format(" (Confidence: %.2f)", confidence);
         return switch (severity.toLowerCase()) {
-            case "none" -> "Your skin looks clear! Maintain with gentle cleansing." + confidenceText;
-            case "mild" -> "Use salicylic acid cleanser twice daily." + confidenceText;
-            case "moderate" -> "Consider benzoyl peroxide and consult a dermatologist." + confidenceText;
-            case "severe" -> "Seek immediate dermatologist consultation." + confidenceText;
+            case "none" -> "Your skin looks clear! Maintain with gentle cleansing.";
+            case "mild" -> "Use salicylic acid cleanser twice daily.";
+            case "moderate" -> "Consider benzoyl peroxide and consult a dermatologist.";
+            case "severe" -> "Seek immediate dermatologist consultation.";
             default -> "Unknown severity.";
         };
     }
 
     private boolean isValidSeverity(String severity) {
         return severity != null && List.of("none", "mild", "moderate", "severe").contains(severity.toLowerCase());
+    }
+
+    @Override
+    public List<AnalysisResponseDto> getAllAnalysisHistory(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("analysisTime").descending());
+        return analysisHistoryRepository.findAll(pageable).stream()
+                .map(history -> new AnalysisResponseDto(
+                        history.getSeverity(),
+                        history.getConfidence() != null ? history.getConfidence() : 1.0,
+                        getSuggestion(history.getSeverity(), history.getConfidence() != null ? history.getConfidence() : 1.0),
+                        history.getDiagnosis(),
+                        history.getAnalysisTime()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public AnalysisResponseDto getAnalysisHistoryById(Long historyId, Long userId) {
+        AnalysisHistory history = analysisHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new RuntimeException("Analysis history not found with id: " + historyId));
+
+        // Check if user is owner (or admin/staff via security, assumed handled externally)
+        if (userId != null && !userId.equals(history.getUserId())) {
+            throw new RuntimeException("User not authorized to access this history");
+        }
+
+        return new AnalysisResponseDto(
+                history.getSeverity(),
+                history.getConfidence() != null ? history.getConfidence() : 1.0,
+                getSuggestion(history.getSeverity(), history.getConfidence() != null ? history.getConfidence() : 1.0),
+                history.getDiagnosis(),
+                history.getAnalysisTime()
+        );
+    }
+
+    @Override
+    public void deleteAnalysisHistoryById(Long historyId) {
+        if (!analysisHistoryRepository.existsById(historyId)) {
+            throw new RuntimeException("Analysis history not found with id: " + historyId);
+        }
+        analysisHistoryRepository.deleteById(historyId);
     }
 }
