@@ -1,8 +1,6 @@
 package com.clearskin_ai.userservice.service.Impl;
 
-import com.clearskin_ai.userservice.api.dto.AnalysisCountDto;
-import com.clearskin_ai.userservice.api.dto.AnalysisHistoryResponseDto;
-import com.clearskin_ai.userservice.api.dto.AnalysisResponseDto;
+import com.clearskin_ai.userservice.api.dto.*;
 import com.clearskin_ai.userservice.constants.ApplicationConstants;
 import com.clearskin_ai.userservice.entity.AnalysisHistory;
 import com.clearskin_ai.userservice.repository.AnalysisHistoryRepository;
@@ -12,8 +10,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -247,10 +244,14 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public List<AnalysisResponseDto> getAllAnalysisHistory(int page, int size) {
+    public AdminAnalysisPageResponse getAllAnalysisHistoryForAdmin(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("analysisTime").descending());
-        return analysisHistoryRepository.findAll(pageable).stream()
-                .map(history -> new AnalysisResponseDto(
+        Page<AnalysisHistory> historiesPage = analysisHistoryRepository.findAll(pageable);
+
+        List<AdminAnalysisResponseDto> content = historiesPage.stream()
+                .map(history -> new AdminAnalysisResponseDto(
+                        history.getHistory_id(),
+                        history.getUserId(),
                         history.getSeverity(),
                         history.getConfidence() != null ? history.getConfidence() : 1.0,
                         getSuggestion(history.getSeverity(), history.getConfidence() != null ? history.getConfidence() : 1.0),
@@ -258,7 +259,17 @@ public class AnalysisServiceImpl implements AnalysisService {
                         history.getAnalysisTime()
                 ))
                 .collect(Collectors.toList());
+
+        return new AdminAnalysisPageResponse(
+                content,
+                historiesPage.getTotalElements(),
+                historiesPage.getTotalPages(),
+                historiesPage.getNumber(),
+                historiesPage.getSize()
+        );
     }
+
+
 
     @Override
     public AnalysisResponseDto getAnalysisHistoryById(Long historyId, Long userId) {

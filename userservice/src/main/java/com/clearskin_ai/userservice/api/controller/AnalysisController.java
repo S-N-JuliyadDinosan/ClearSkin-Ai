@@ -1,8 +1,6 @@
 package com.clearskin_ai.userservice.api.controller;
 
-import com.clearskin_ai.userservice.api.dto.AnalysisCountDto;
-import com.clearskin_ai.userservice.api.dto.AnalysisHistoryResponseDto;
-import com.clearskin_ai.userservice.api.dto.AnalysisResponseDto;
+import com.clearskin_ai.userservice.api.dto.*;
 import com.clearskin_ai.userservice.service.AnalysisService;
 import com.clearskin_ai.userservice.util.EndpointBundle;
 import lombok.RequiredArgsConstructor;
@@ -47,15 +45,16 @@ public class AnalysisController {
         return new ResponseEntity<>(anonymousAnalyses, HttpStatus.OK);
     }
 
-    // 1️⃣ Get all analysis history (pagination) - admin/staff only
     @GetMapping("/analysis/all")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
-    public ResponseEntity<List<AnalysisResponseDto>> getAllAnalysisHistory(
+    public ResponseEntity<AdminAnalysisPageResponse> getAllAnalysisHistory(
             @RequestParam int page,
             @RequestParam int size) {
-        List<AnalysisResponseDto> histories = analysisService.getAllAnalysisHistory(page, size);
-        return new ResponseEntity<>(histories, HttpStatus.OK);
+
+        AdminAnalysisPageResponse response = analysisService.getAllAnalysisHistoryForAdmin(page, size);
+        return ResponseEntity.ok(response);
     }
+
 
     // 2️⃣ Get analysis history by historyId - admin/staff/user
     @GetMapping("/analysis/{historyId}")
